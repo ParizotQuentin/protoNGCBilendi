@@ -6,15 +6,41 @@
         capture_pageview: false, /* pageviews envoyés à la main, un par écran (voir ngcPage) */
     })
     posthog.register({ prototype: 'NGC test empreinte', version_proto: 'F' });
-    /* Une URL par écran (#/rules, #/question/<id>, #/fin, #/result…) + $pageview, pour séparer replays et heatmaps par écran */
+    /* Une URL par écran (#/rules, #/question/<id>, #/fin, #/result…) + $pageview, pour séparer replays et heatmaps par écran.
+       Mesure aussi le temps passé (onglet visible) sur chaque écran / question : événement ngc_temps_ecran. */
+    var __vis = 0, __visFrom = document.visibilityState === 'visible' ? Date.now() : null, __act = '';
+    function __visTotal() { return __vis + (__visFrom ? Date.now() - __visFrom : 0); }
+    function __flush(action, beacon) {
+      var cur = window.__ngcLast; if (!cur || !window.posthog || !posthog.capture) return;
+      var t = Math.round(__visTotal()); __vis = 0; if (__visFrom) __visFrom = Date.now();
+      var isQ = cur.indexOf('question/') === 0;
+      var props = { ecran: cur, type: isQ ? 'question' : 'ecran', temps_ms: t, actionType: action || __act || 'autre' };
+      if (isQ) props.question = cur.slice(9);
+      __act = '';
+      try { posthog.capture('ngc_temps_ecran', props, beacon ? { transport: 'sendBeacon' } : undefined); } catch (err) {}
+    }
     window.ngcPage = function (path) {
       try {
         if (window.__ngcLast === path) return;
+        __flush();
         window.__ngcLast = path;
         history.replaceState(null, '', '#/' + path);
         if (window.posthog && posthog.capture) posthog.capture('$pageview');
       } catch (err) {}
     };
+    /* action de sortie : suivant / précédent / passer (même vocabulaire que « click form nav » en prod) */
+    document.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target : null; if (!t) return;
+      if (t.closest('#validate, #q-next')) __act = 'suivant';
+      else if (t.closest('#q-prev')) __act = 'précédent';
+      else if (t.closest('#skip, #surf-pass, #heat-pass, #gen-pass, #sp-go')) __act = 'passer';
+      else if (t.closest('#sp-no')) __act = '';
+    }, true);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') { __flush('masque', true); if (__visFrom) { __vis += 0; __visFrom = null; } }
+      else if (!__visFrom) __visFrom = Date.now();
+    });
+    window.addEventListener('pagehide', function () { __flush('sortie', true); });
     document.addEventListener('DOMContentLoaded', function () { window.ngcPage('rules'); });
     window.ngcTrack = function (ev, props) { try { if (window.posthog && posthog.capture) posthog.capture(ev, props || {}); } catch (err) {} };
 </script>
