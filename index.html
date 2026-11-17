@@ -3,8 +3,19 @@
     posthog.init('phc_CuJ6MW9JjbxyHxvyBQ8A23gfnvbHKpBejpTGnGmX8WQA', {
         api_host: 'https://eu.i.posthog.com',
         defaults: '2026-08-30',
+        capture_pageview: false, /* pageviews envoyés à la main, un par écran (voir ngcPage) */
     })
     posthog.register({ prototype: 'NGC test empreinte', version_proto: 'F' });
+    /* Une URL par écran (#/rules, #/question/<id>, #/fin, #/result…) + $pageview, pour séparer replays et heatmaps par écran */
+    window.ngcPage = function (path) {
+      try {
+        if (window.__ngcLast === path) return;
+        window.__ngcLast = path;
+        history.replaceState(null, '', '#/' + path);
+        if (window.posthog && posthog.capture) posthog.capture('$pageview');
+      } catch (err) {}
+    };
+    document.addEventListener('DOMContentLoaded', function () { window.ngcPage('rules'); });
     window.ngcTrack = function (ev, props) { try { if (window.posthog && posthog.capture) posthog.capture(ev, props || {}); } catch (err) {} };
 </script>
 </head><body>
@@ -1877,6 +1888,7 @@ button{font-family:inherit}
   /* ---------- Navigation ---------- */
   function go(name) {
     window.ngcTrack && ngcTrack('ngc_ecran_vu', { ecran: name });
+    if (name !== 'question') window.ngcPage && ngcPage(name);
     setTimeout(setFootH, 30); setTimeout(function () { if (window.__placePT) window.__placePT(); }, 60);
     Object.keys(screens).forEach(function (k) { screens[k].hidden = k !== name; });
     closeHelp(true);
@@ -2290,6 +2302,7 @@ button{font-family:inherit}
     hideTip(true);
     LIVE = null;
     var b = blocks[state.q], cat = b.getAttribute('data-cat'), pg = PAGE_OF[state.q];
+    window.ngcPage && ngcPage('question/' + (b.getAttribute('data-id') || (cat + '-' + b.getAttribute('data-n'))));
     window.ngcTrack && ngcTrack('ngc_question_vue', { question: b.getAttribute('data-id') || (cat + '-' + b.getAttribute('data-n')), categorie: cat, titre: (b.querySelector('.qtitle') || {}).textContent || '' });
     if (window.__surfDefault && b.querySelector('#hint-surface')) window.__surfDefault();
     blocks.forEach(function (x, i) { x.hidden = pg ? pg.indexOf(i) < 0 : i !== state.q; });
