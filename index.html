@@ -25,7 +25,7 @@
         __flush();
         window.__ngcLast = path;
         history.replaceState(null, '', '#/' + path);
-        if (window.posthog && posthog.capture) posthog.capture('$pageview');
+        if (window.posthog && posthog.capture) posthog.capture('$pageview', { $current_url: location.origin + location.pathname + '#/' + path, ecran: path });
       } catch (err) {}
     };
     /* action de sortie : suivant / précédent / passer (même vocabulaire que « click form nav » en prod) */
