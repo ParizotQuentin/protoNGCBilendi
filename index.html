@@ -43,6 +43,7 @@
     window.addEventListener('pagehide', function () { __flush('sortie', true); });
     document.addEventListener('DOMContentLoaded', function () { window.ngcPage('rules'); });
     window.ngcTrack = function (ev, props) { try { if (window.posthog && posthog.capture) posthog.capture(ev, props || {}); } catch (err) {} };
+    window.ngcSer = function (v) { try { if (v === undefined) return null; if (v === null) return 'ne_sait_pas'; var x = typeof v === 'object' ? JSON.stringify(v) : String(v); return x.length > 400 ? x.slice(0, 400) : x; } catch (err) { return null; } };
 </script>
 </head><body>
 <title>Test empreinte NGC · version F</title>
@@ -3012,18 +3013,19 @@ button{font-family:inherit}
     $('q-next').focus();
   }
   $('validate').addEventListener('click', function () {
-    if (PAGE_OF[state.q]) { var ptip = commitPage(); autoTok = null; hideTip(true); nextQ(); if (ptip && !screens.question.hidden) showTip(ptip); return; }
+    if (PAGE_OF[state.q]) { var pgi = PAGE_OF[state.q].slice(), ptip = commitPage(); pgi.forEach(function (i) { var k = keyOf(i); if (window.ngcTrack && (k in A)) ngcTrack('ngc_reponse', { question: blocks[i].getAttribute('data-id') || (blocks[i].getAttribute('data-cat') + '-' + blocks[i].getAttribute('data-n')), cle: k, answer: ngcSer(A[k]), categorie: blocks[i].getAttribute('data-cat') }); }); autoTok = null; hideTip(true); nextQ(); if (ptip && !screens.question.hidden) showTip(ptip); return; }
     var d = drafts[state.q]; if (d === null) return;
     A[d.key] = d.v; if (d.txt) TXT[d.key] = d.txt; else delete TXT[d.key];
     if (d.extra) Object.keys(d.extra).forEach(function (k) { A[k] = d.extra[k]; });
     if (d.key === 'age_log') rfA.age = { 'Moins de 10 ans': 'Moins de 10 ans (après 2016)', 'Entre 10 et 50 ans': 'Entre 10 et 50 ans', 'Plus de 50 ans': 'Plus de 50 ans (avant 1976)' }[d.v]; /* déjà répondu : repris dans « Affiner » */
+    window.ngcTrack && ngcTrack('ngc_reponse', { question: blocks[state.q].getAttribute('data-id') || (blocks[state.q].getAttribute('data-cat') + '-' + blocks[state.q].getAttribute('data-n')), cle: d.key, answer: ngcSer(d.v), complement: d.extra ? ngcSer(d.extra) : undefined, categorie: blocks[state.q].getAttribute('data-cat') });
     autoTok = null; hideTip(true);
     var tip = TIPS[d.key] && TIPS[d.key](d.v);
     nextQ();
     if (tip && !screens.question.hidden) showTip(tip);
   });
   $('skip').addEventListener('click', function () {
-    var sb = blocks[state.q]; window.ngcTrack && sb && ngcTrack('ngc_question_passee', { question: sb.getAttribute('data-id') || (sb.getAttribute('data-cat') + '-' + sb.getAttribute('data-n')), categorie: sb.getAttribute('data-cat') });
+    var sb = blocks[state.q]; window.ngcTrack && sb && ngcTrack('ngc_question_passee', { question: sb.getAttribute('data-id') || (sb.getAttribute('data-cat') + '-' + sb.getAttribute('data-n')), categorie: sb.getAttribute('data-cat'), answer: 'passee' });
     /* surface : « Je ne sais pas » affiche d'abord des repères par type de logement */
     if (blocks[state.q].getAttribute('data-id') === 'chauff' && $('heat-help').hidden) { openHeatHelp(); return; }
     if (GSL[state.q] && GSL[state.q].spec.chips && $('gen-help').hidden) { openGenHelp(state.q); return; }
@@ -3794,7 +3796,7 @@ button{font-family:inherit}
   function showResultExt(upd) {
     var b = buildBilan(), fonts = (document.querySelector('style').textContent.match(/@font-face\{[^}]*\}/g) || []).join('\n');
     if (upd) upd.to = b.total / 1000;
-    window.ngcTrack && ngcTrack(upd ? 'ngc_resultat_mis_a_jour' : 'ngc_resultat_vu', { total_t: Math.round(b.total / 100) / 10, logement_t: Math.round(state.totals.log * 10) / 10, alimentation_t: Math.round(state.totals.ali * 10) / 10, transport_t: Math.round(state.totals.tra * 10) / 10, consommation_t: Math.round(state.totals.con * 10) / 10, postes_estimes: (resAnswers().est || []).join(',') });
+    window.ngcTrack && ngcTrack(upd ? 'ngc_resultat_mis_a_jour' : 'ngc_resultat_vu', { total_t: Math.round(b.total / 100) / 10, logement_t: Math.round(state.totals.log * 10) / 10, alimentation_t: Math.round(state.totals.ali * 10) / 10, transport_t: Math.round(state.totals.tra * 10) / 10, consommation_t: Math.round(state.totals.con * 10) / 10, postes_estimes: (resAnswers().est || []).join(','), reponses_affinage: upd ? ngcSer(rfA) : undefined });
     var html = RES_TPL.replace('__UPDATE__', JSON.stringify(upd || null)).replace('__BILAN__', JSON.stringify(b)).replace('__ANSWERS__', function () { return JSON.stringify(resAnswers()); }).replace('__TOT__', (Math.round(b.total / 100) / 10).toLocaleString('fr-FR')).replace('/*__FONTS__*/', function () { return fonts; });
     var scr = $('s-result'), fr = $('res-frame');
     if (!fr) { fr = document.createElement('iframe'); fr.id = 'res-frame'; fr.title = 'Votre résultat'; fr.addEventListener('load', rfHead); scr.appendChild(fr); }
